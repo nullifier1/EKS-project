@@ -1,0 +1,65 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gogs
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: gogs
+  template:
+    metadata:
+      labels:
+        app: gogs
+    spec:
+      containers:
+      - name: gogs
+        image: infinityofcore/testgogs:147   #nginx:1.14.2
+        ports:
+        - name: web
+          containerPort: 3000
+        envFrom:
+        - secretRef:
+            name: gogs-mariadb-secret
+        env:
+        - name: MARIADB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gogs-mariadb-secret
+              key: gogs-mariadb-password
+        - name: MARIADB_ADDRESS
+          valueFrom:
+            secretKeyRef:
+              name: gogs-mariadb-address
+              key: gogs-mariadb-address
+        command: ["/bin/sh", "-c"]
+        args: ['sed -i "s/MARIADB_PASSWORD/$MARIADB_PASSWORD/g" /usr/local/bin/custom/conf/app.ini && sed -i "s/mariadb-service/$MARIADB_ADDRESS/g" /usr/local/bin/custom/conf/app.ini && git config --global --add safe.directory "*" && gogs web']
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 250m
+          limits:
+            memory: 256Mi
+            cpu: 250m
+        volumeMounts:
+        - name: efs-pv
+          mountPath: "/usr/local/bin/data"
+      volumes:
+      - name: efs-pv
+        persistentVolumeClaim:
+          claimName: efs-pvc 
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: role
+                operator: In
+                values:
+                - general
+      # tolerations:
+      # - key: team
+      #   operator: Equal
+      #   value: devops
+      #   effect: NoSchedule
